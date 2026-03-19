@@ -47,7 +47,8 @@ def ingest_document(cloud_event):
     print(f"Total chunks created: {len(chunks)}")
 
     # Save chunks to processed layer
-    base_name = file_name.split("/")[-1]
+    base_name = file_name.split("/")[-1].split(".pdf")[0]
+    
 
     for idx, chunk in enumerate(chunks):
         chunk_blob = bucket.blob(f"processed/{base_name}_chunk_{idx}.txt")

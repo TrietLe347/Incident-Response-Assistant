@@ -53,4 +53,6 @@ def ingest_document(cloud_event):
         chunk_blob = bucket.blob(f"processed/{base_name}_chunk_{idx}.txt")
         chunk_blob.upload_from_string(chunk)
 
-    print("Chunks uploaded to processed/ folder")
+    #print("Chunks uploaded to processed/ folder")
+
+    print("UPLOADED FROM GITHUB YEHOO")

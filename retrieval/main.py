@@ -65,8 +65,8 @@ def get_vertex_model():
 
 load_embeddings()
 
-@functions_framework.http
-def search(request):
+
+def handle_search(request):
 
     if emb_matrix is None:
         return jsonify({"error": "No embeddings available yet"}), 400
@@ -106,3 +106,40 @@ def search(request):
         })
 
     return jsonify(results)
+
+
+def reload_embeddings(request):
+
+    print("Manual reload triggered")
+
+    load_embeddings()
+
+    if emb_matrix is None:
+        return jsonify({
+            "status": "no_embeddings_found"
+        }), 200
+
+    return jsonify({
+        "status": "reloaded",
+        "embeddings_loaded": len(metadata)
+    })
+
+@functions_framework.http
+def app(request):
+
+    path = request.path
+
+    if path == "/reload":
+        print("Manual reload triggered")
+        load_embeddings()
+
+        if emb_matrix is None:
+            return jsonify({"status": "no_embeddings_found"}), 200
+
+        return jsonify({
+            "status": "reloaded",
+            "embeddings_loaded": len(metadata)
+        })
+
+    # default → search
+    return handle_search(request)

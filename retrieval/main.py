@@ -21,7 +21,7 @@ vertex_model = None
 def load_embeddings():
     global emb_matrix, metadata
 
-    print("Loading embeddings from bucket")
+    print(f"Loading embeddings from bucket {BUCKET_NAME}")
 
     bucket = storage_client.bucket(BUCKET_NAME)
 
@@ -38,6 +38,8 @@ def load_embeddings():
         vectors.append(data["vector"])
         meta.append(data)
 
+        print(f"Loaded embedding file: {blob.name}")
+
     if len(vectors) == 0:
         print("No embeddings found yet")
         emb_matrix = None
@@ -47,7 +49,7 @@ def load_embeddings():
     emb_matrix = np.array(vectors, dtype=np.float32)
     metadata = meta
     
-    print(f"Loaded {len(metadata)} embeddings")
+    print(f"Total embeddings loaded into memory: {len(metadata)}")
 
 
 def get_vertex_model():
@@ -72,18 +74,26 @@ def search(request):
     req_json = request.get_json(silent = True)
 
     if not req_json or "query" not in req_json:
+        print("ERROR: Missing query in request")
         return jsonify({"error": "Missing query"}), 400
 
     query = req_json["query"]
+    print(f"Incoming query: {query}")
     model = get_vertex_model()
 
     query_vec = model.get_embeddings([query])[0].values
     query_vec = np.array(query_vec, dtype=np.float32)
 
+    print(f"Query embedding dimension: {len(query_vec)}")
+    
     sims = emb_matrix @ query_vec
     sims = sims / (np.linalg.norm(emb_matrix,axis=1) * np.linalg.norm(query_vec))
 
     top_indices = np.argsort(sims)[-5:][::-1]
+
+    print("Top similarity scores:")
+    for idx in top_indices:
+        print(float(sims[idx]), metadata[idx]["source_chunk"])
 
     results = []
 

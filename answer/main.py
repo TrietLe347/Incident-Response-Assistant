@@ -1,0 +1,90 @@
+import functions_framework
+from flask import request, jsonify
+import requests
+import vertexai
+from vertexai.generative_models import GenerativeModel
+import os
+
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
+LOCATION = "us-central1"
+
+RETRIEVAL_URL = "https://retrieval-service-571628338947.us-central1.run.app"
+
+model = None
+
+def get_model():
+    global model
+
+    if model is None:
+        vertexai.init(project=PROJECT_ID, location=LOCATION)
+        model = GenerativeModel("gemini-1.5-flash")
+
+    return model
+
+def build_prompt(question,chunks):
+
+    context = "\n\n".join(
+        [f"Source: {c['source']}\n{c['text']}" for c in chunks]
+    )
+
+    prompt = f"""
+You are an incident response assistant
+
+Use ONLY the context below to answer the question.
+If the answer is not in the context, say you dont know
+
+Context:
+{context}
+
+Question:
+{question}
+
+Answer:
+"""
+    
+    return prompt
+
+
+@functions_framework.http
+def answer(request):
+
+    req_json = request.get_json(silent=True)
+
+    if not req_json or "query" not in req_json:
+        return jsonify({"error": "Missing query"}), 400
+    
+    question = req_json["query"]
+
+    print(f"User question: {question}")
+
+    r = requests.post(
+        RETRIEVAL_URL,
+        json= {"query":question},
+        timeout=30
+    )
+
+    if r.status_code != 200:
+        return jsonify({
+            "error": "Retrieval service failed",
+            "status": r.status_code
+        }), 500
+
+    chunks = r.json()
+
+    print(f"Chunks received: {len(chunks)}")
+
+    if not chunks:
+        return jsonify({"answer": "No relevant information found."})
+    
+    prompt = build_prompt(question,chunks)
+
+    gemini = get_model()
+
+    response = gemini.generate_content(prompt)
+
+    answer_text = response.text if response.text else "No answer generated."
+
+    return jsonify({
+        "answer" : answer_text,
+        "sources" : [c["source"] for c in chunks]
+    })

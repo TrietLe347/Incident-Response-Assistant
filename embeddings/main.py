@@ -1,9 +1,31 @@
 import functions_framework
 from google.cloud import storage
+import vertexai
+from vertexai.language_models import TextEmbeddingModel
 import json
-import random
+import os
 
-VECTOR_SIZE = 8 # fake small vector for testing
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
+LOCATION = "us-central1"
+
+
+model = None
+
+
+def get_model():
+    global model
+    if model is None:
+        vertexai.init(project=PROJECT_ID, location=LOCATION)
+        model = TextEmbeddingModel.from_pretrained("text-embedding-004")
+
+    return model
+
+
+
+
+
+
+
 
 @functions_framework.cloud_event
 def embed_chunk(cloud_event):
@@ -35,12 +57,17 @@ def embed_chunk(cloud_event):
 
     text = blob.download_as_text()
 
-    #fake embedding
-    vector = [random.random() for _ in range(VECTOR_SIZE)]
+    embedding_model = get_model()
+
+    embedding = model.get_embeddings([text])[0].values
+
+    
+
+
 
     embedding_data ={
         "text" : text,
-        "vector" : vector,
+        "vector" : embedding,
         "source_chunk" : file_name
     }    
 
@@ -48,4 +75,5 @@ def embed_chunk(cloud_event):
     
     out_blob = bucket.blob(out_name)
     out_blob.upload_from_string(json.dumps(embedding_data))
+    
     print(f"Saved embedding -> {out_name}")

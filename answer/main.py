@@ -4,22 +4,19 @@ import requests
 import vertexai
 from vertexai.generative_models import GenerativeModel
 import os
+from google import genai
 
 PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
 LOCATION = "us-central1"
 
 RETRIEVAL_URL = "https://retrieval-service-571628338947.us-central1.run.app"
 
+client = genai.Client()
+MODEL_ID = "gemini-2.0-flash-001"
+
 model = None
 
-def get_model():
-    global model
 
-    if model is None:
-        vertexai.init(project=PROJECT_ID, location=LOCATION)
-        model = GenerativeModel("gemini-2.0-flash-001")
-
-    return model
 
 def build_prompt(question,chunks):
 
@@ -78,9 +75,9 @@ def answer(request):
     
     prompt = build_prompt(question,chunks)
 
-    gemini = get_model()
+    
 
-    response = gemini.generate_content(prompt)
+    response = client.models.generate_content(model=MODEL_ID, contents=prompt)
 
     answer_text = response.text if response.text else "No answer generated."
 

@@ -4,31 +4,43 @@ import requests
 import vertexai
 from vertexai.generative_models import GenerativeModel
 import os
-from google import genai
 
 PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
 LOCATION = "us-central1"
 
 RETRIEVAL_URL = "https://retrieval-service-571628338947.us-central1.run.app"
 
-client = genai.Client()
-MODEL_ID = "gemini-2.0-flash-001"
-
 model = None
 
 
+def get_model():
+    global model
 
-def build_prompt(question,chunks):
+    if model is None:
+        print("Initializing Vertex AI Gemini model")
+
+        vertexai.init(
+            project=PROJECT_ID,
+            location=LOCATION
+        )
+
+        # ✅ THIS is the correct model name format for Vertex
+        model = GenerativeModel("gemini-2.0-flash")
+
+    return model
+
+
+def build_prompt(question, chunks):
 
     context = "\n\n".join(
         [f"Source: {c['source']}\n{c['text']}" for c in chunks]
     )
 
     prompt = f"""
-You are an incident response assistant
+You are an incident response assistant.
 
 Use ONLY the context below to answer the question.
-If the answer is not in the context, say you dont know
+If the answer is not in the context, say you do not know.
 
 Context:
 {context}
@@ -38,7 +50,7 @@ Question:
 
 Answer:
 """
-    
+
     return prompt
 
 
@@ -49,18 +61,20 @@ def answer(request):
 
     if not req_json or "query" not in req_json:
         return jsonify({"error": "Missing query"}), 400
-    
+
     question = req_json["query"]
 
     print(f"User question: {question}")
 
+    # ---- call retrieval service ----
     r = requests.post(
         RETRIEVAL_URL,
-        json= {"query":question},
+        json={"query": question},
         timeout=30
     )
 
     if r.status_code != 200:
+        print("Retrieval failed")
         return jsonify({
             "error": "Retrieval service failed",
             "status": r.status_code
@@ -72,16 +86,18 @@ def answer(request):
 
     if not chunks:
         return jsonify({"answer": "No relevant information found."})
-    
-    prompt = build_prompt(question,chunks)
 
-    
+    prompt = build_prompt(question, chunks)
 
-    response = client.models.generate_content(model=MODEL_ID, contents=prompt)
+    gemini = get_model()
+
+    print("Sending prompt to Gemini")
+
+    response = gemini.generate_content(prompt)
 
     answer_text = response.text if response.text else "No answer generated."
 
     return jsonify({
-        "answer" : answer_text,
-        "sources" : [c["source"] for c in chunks]
+        "answer": answer_text,
+        "sources": [c["source"] for c in chunks]
     })

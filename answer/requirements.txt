@@ -1,4 +1,4 @@
 functions-framework
 requests
 google-cloud-aiplatform
-google-genai
+vertexai

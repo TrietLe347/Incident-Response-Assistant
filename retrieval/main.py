@@ -18,6 +18,8 @@ metadata = []
 
 vertex_model = None
 
+TOP_K = 8
+
 def load_embeddings():
     global emb_matrix, metadata
 
@@ -89,20 +91,34 @@ def handle_search(request):
     sims = emb_matrix @ query_vec
     sims = sims / (np.linalg.norm(emb_matrix,axis=1) * np.linalg.norm(query_vec))
 
-    top_indices = np.argsort(sims)[-5:][::-1]
+    top_indices = np.argsort(sims)[-TOP_K:][::-1]
 
     print("Top similarity scores:")
     for idx in top_indices:
         print(float(sims[idx]), metadata[idx]["source_chunk"])
 
-    results = []
-
+    expanded = set()
 
     for idx in top_indices:
+        expanded.add(idx)
+
+        # previous chunk
+        if idx - 1 >= 0:
+            expanded.add(idx - 1)
+
+        # next chunk
+        if idx + 1 < len(metadata):
+            expanded.add(idx + 1)
+
+    expanded = sorted(list(expanded))
+
+    results = []
+
+    for idx in expanded:
         results.append({
-            "score":float(sims[idx]),
+            "score": float(sims[idx]),
             "text": metadata[idx]["text"],
-            "source":metadata[idx]["source_chunk"]
+            "source": metadata[idx]["source_chunk"]
         })
 
     return jsonify(results)

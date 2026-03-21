@@ -37,19 +37,27 @@ def build_prompt(question, chunks):
     )
 
     prompt = f"""
-You are an incident response assistant.
+    You are an incident response assistant for university housing.
 
-Use ONLY the context below to answer the question.
-If the answer is not in the context, say you do not know.
+    Use ONLY the context below to answer the question.
+    If the answer is not present, say you do not know.
 
-Context:
-{context}
+    When possible:
+    - Answer clearly
+    - Use bullet points if helpful
+    - Mention key procedures or rules
 
-Question:
-{question}
+    Context:
+    {context}
 
-Answer:
-"""
+    Question:
+    {question}
+
+    Semantic hints:
+    maintenance emergency urgent repair safety hazard housing facilities reporting procedure
+
+    Final Answer:
+    """
 
     return prompt
 

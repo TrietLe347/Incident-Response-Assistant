@@ -57,11 +57,22 @@ Answer:
 @functions_framework.http
 def answer(request):
 
+    if request.method == "OPTIONS":
+        headers = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST",
+            "Access-Control-Allow-Headers": "Content-Type",
+        }
+        return ("", 204, headers)
+
+    headers = {
+        "Access-Control-Allow-Origin": "*"
+    }
+
     req_json = request.get_json(silent=True)
 
     if not req_json or "query" not in req_json:
-        return jsonify({"error": "Missing query"}), 400
-
+        return (jsonify({"error": "Missing query"}), 400, headers)
     question = req_json["query"]
 
     print(f"User question: {question}")
@@ -97,7 +108,7 @@ def answer(request):
 
     answer_text = response.text if response.text else "No answer generated."
 
-    return jsonify({
+    return (jsonify({
         "answer": answer_text,
         "sources": [c["source"] for c in chunks]
-    })
+    }),200,headers)

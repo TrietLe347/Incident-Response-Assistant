@@ -27,7 +27,7 @@ def get_model():
         # ✅ THIS is the correct model name format for Vertex
         model = GenerativeModel("gemini-2.5-flash")
 
-    return model
+    return model #test
 
 
 def build_prompt(question, chunks):

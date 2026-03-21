@@ -100,6 +100,7 @@ def answer(request):
         }), 500
 
     chunks = r.json()
+    chunks = [c for c in chunks if c["score"] > 0.55][:8]
 
     print(f"Chunks received: {len(chunks)}")
 

@@ -18,7 +18,7 @@ metadata = []
 
 vertex_model = None
 
-TOP_K = 8
+TOP_K = 20
 
 def load_embeddings():
     global emb_matrix, metadata

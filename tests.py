@@ -272,4 +272,101 @@ class TestRetrievalService:
             assert response.status_code == 200
             assert data["status"] == "reloaded"
             assert data["embeddings_loaded"] == 4
-            
+
+# ── Answer service tests ──────────────────────────────────────────────────────
+ 
+class TestAnswerService:
+ 
+    def test_returns_400_when_missing_query(self):
+        """Should return 400 if query is missing from request."""
+        import answer.main as answer
+        client = answer.flask_app.test_client() if hasattr(answer, "flask_app") else None
+ 
+        with patch("answer.main.request") as mock_req:
+            mock_req.method = "POST"
+            mock_req.get_json.return_value = {}
+ 
+            from answer.main import answer as answer_fn
+            from flask import Flask
+            app = Flask(__name__)
+            with app.test_request_context("/", method="POST", json={}):
+                response = answer_fn(mock_req)
+                assert response[1] == 400
+ 
+    def test_returns_no_result_when_no_chunks(self):
+        """Should return a no-result message when retrieval returns empty."""
+        import answer.main as answer_module
+ 
+        with patch("answer.main.requests.post") as mock_retrieval, \
+             patch("answer.main.request") as mock_req:
+ 
+            mock_req.method = "POST"
+            mock_req.get_json.return_value = {"query": "what is the meaning of life"}
+ 
+            mock_retrieval.return_value.status_code = 200
+            mock_retrieval.return_value.json.return_value = []
+ 
+            from answer.main import answer as answer_fn
+            response = answer_fn(mock_req)
+ 
+            body = json.loads(response[0].data) if hasattr(response[0], "data") else response[0].get_json()
+            assert "No relevant" in body.get("answer", "")
+ 
+    def test_build_prompt_includes_context(self):
+        """Prompt should include both the context chunks and the question."""
+        from answer.main import build_prompt
+ 
+        chunks = [
+            {"source": "processed/chunk_0.txt", "text": "Evacuate immediately during gas leaks."},
+            {"source": "processed/chunk_1.txt", "text": "Call 911 after evacuating."},
+        ]
+        question = "What do I do during a gas leak?"
+ 
+        prompt = build_prompt(question, chunks)
+ 
+        assert "Evacuate immediately during gas leaks." in prompt
+        assert "Call 911 after evacuating." in prompt
+        assert "What do I do during a gas leak?" in prompt
+        assert "processed/chunk_0.txt" in prompt
+ 
+    def test_build_prompt_includes_grounding_instruction(self):
+        """Prompt must tell Gemini to use ONLY the provided context."""
+        from answer.main import build_prompt
+ 
+        chunks = [{"source": "s", "text": "some text"}]
+        prompt = build_prompt("test question", chunks)
+ 
+        assert "ONLY" in prompt or "only" in prompt
+ 
+    def test_cors_headers_present(self):
+        """Response should include CORS headers."""
+        import answer.main as answer_module
+ 
+        with patch("answer.main.requests.post") as mock_retrieval, \
+             patch("answer.main.get_model") as mock_gemini, \
+             patch("answer.main.request") as mock_req:
+ 
+            mock_req.method = "POST"
+            mock_req.get_json.return_value = {"query": "fire alarm", "stream": False}
+ 
+            mock_retrieval.return_value.status_code = 200
+            mock_retrieval.return_value.json.return_value = [
+                {"score": 0.9, "text": "Evacuate immediately.", "source": "chunk_0.txt"}
+            ]
+ 
+            mock_response = MagicMock()
+            mock_response.text = "You should evacuate immediately."
+            mock_gemini.return_value.generate_content.return_value = mock_response
+ 
+            from answer.main import answer as answer_fn
+            response = answer_fn(mock_req)
+ 
+            headers = response[2] if len(response) > 2 else {}
+            assert "Access-Control-Allow-Origin" in headers
+ 
+ 
+# ── Run ───────────────────────────────────────────────────────────────────────
+ 
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
+ 

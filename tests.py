@@ -78,7 +78,7 @@ class TestIngestDocument:
             ingest_document(event)
  
             assert mock_blob.upload_from_string.called
-            
+
 class TestEmbedChunk:
  
     def test_skips_non_processed_files(self):
@@ -184,3 +184,92 @@ class TestEmbedChunk:
         assert "source_chunk" in saved_data
         assert saved_data["text"] == fake_text
         assert len(saved_data["vector"]) == 768
+
+# ── Retrieval service tests ───────────────────────────────────────────────────
+ 
+class TestRetrievalService:
+ 
+    def setup_method(self):
+        """Set up a fake in-memory embedding matrix for each test."""
+        import retrieval.main as retrieval
+        self.retrieval = retrieval
+ 
+        self.retrieval.metadata = [
+            {"text": "Gas leak: evacuate immediately and call 911.", "source_chunk": "processed/emergency_chunk_0.txt"},
+            {"text": "Fire alarm: knock on all doors and go to assembly point.", "source_chunk": "processed/emergency_chunk_1.txt"},
+            {"text": "Quiet hours on weekdays are 10pm to 8am.", "source_chunk": "processed/policy_chunk_0.txt"},
+            {"text": "Residents may have up to 3 overnight guests.", "source_chunk": "processed/policy_chunk_1.txt"},
+        ]
+        self.retrieval.emb_matrix = np.random.rand(4, 768).astype(np.float32)
+ 
+    def test_returns_400_when_no_embeddings(self):
+        """Should return 400 if no embeddings are loaded."""
+        self.retrieval.emb_matrix = None
+ 
+        from flask import Flask
+        app = Flask(__name__)
+        with app.test_request_context(
+            "/", method="POST",
+            json={"query": "gas leak"},
+            content_type="application/json"
+        ):
+            from flask import request
+            response = self.retrieval.flask_app.test_client().post(
+                "/", json={"query": "gas leak"}
+            )
+            assert response.status_code == 400
+ 
+    def test_returns_400_when_missing_query(self):
+        """Should return 400 if query field is missing."""
+        client = self.retrieval.flask_app.test_client()
+        response = client.post("/", json={"wrong_field": "hello"})
+        assert response.status_code == 400
+ 
+    def test_returns_results_list(self):
+        """Should return a list of results with score, text, source fields."""
+        with patch.object(self.retrieval, "get_vertex_model") as mock_model:
+            mock_model.return_value.get_embeddings.return_value = [
+                MagicMock(values=np.random.rand(768).tolist())
+            ]
+ 
+            client = self.retrieval.flask_app.test_client()
+            response = client.post("/", json={"query": "what to do during gas leak"})
+ 
+            assert response.status_code == 200
+            data = response.get_json()
+            assert isinstance(data, list)
+            assert len(data) > 0
+            assert "score" in data[0]
+            assert "text" in data[0]
+            assert "source" in data[0]
+ 
+    def test_scores_are_between_0_and_1(self):
+        """Cosine similarity scores should be between 0 and 1."""
+        with patch.object(self.retrieval, "get_vertex_model") as mock_model:
+            mock_model.return_value.get_embeddings.return_value = [
+                MagicMock(values=np.random.rand(768).tolist())
+            ]
+ 
+            client = self.retrieval.flask_app.test_client()
+            response = client.post("/", json={"query": "fire alarm procedure"})
+            data = response.get_json()
+ 
+            for result in data:
+                assert -1.0 <= result["score"] <= 1.0
+ 
+    def test_reload_returns_count(self):
+        """Reload endpoint should return the number of embeddings loaded."""
+        with patch.object(self.retrieval, "load_embeddings") as mock_load:
+            def fake_load():
+                self.retrieval.emb_matrix = np.random.rand(4, 768).astype(np.float32)
+                self.retrieval.metadata = [{}] * 4
+            mock_load.side_effect = fake_load
+ 
+            client = self.retrieval.flask_app.test_client()
+            response = client.get("/reload")
+            data = response.get_json()
+ 
+            assert response.status_code == 200
+            assert data["status"] == "reloaded"
+            assert data["embeddings_loaded"] == 4
+            

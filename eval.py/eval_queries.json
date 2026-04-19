@@ -1,0 +1,212 @@
+[
+  {
+    "id": "q001",
+    "query": "What should an RA do when a resident reports a gas leak?",
+    "expected_keywords": ["gas", "leak", "evacuate", "facilities", "emergency", "911"],
+    "category": "facilities_emergency",
+    "severity": "high"
+  },
+  {
+    "id": "q002",
+    "query": "A resident is expressing suicidal thoughts. What is the protocol?",
+    "expected_keywords": ["self-harm", "mental health", "counseling", "crisis", "emergency", "notify"],
+    "category": "mental_health",
+    "severity": "high"
+  },
+  {
+    "id": "q003",
+    "query": "How do I document a noise complaint from a resident?",
+    "expected_keywords": ["noise", "complaint", "document", "incident report", "warning"],
+    "category": "policy_violation",
+    "severity": "low"
+  },
+  {
+    "id": "q004",
+    "query": "What are the steps for handling an unauthorized guest found in a residence hall?",
+    "expected_keywords": ["guest", "unauthorized", "policy", "escort", "ID", "report"],
+    "category": "policy_violation",
+    "severity": "medium"
+  },
+  {
+    "id": "q005",
+    "query": "A resident has locked themselves out of their room at 2am. What is the procedure?",
+    "expected_keywords": ["lockout", "key", "ID", "verification", "facilities", "fee"],
+    "category": "lockout",
+    "severity": "low"
+  },
+  {
+    "id": "q006",
+    "query": "How should I respond if I find drug paraphernalia in a common area?",
+    "expected_keywords": ["drug", "paraphernalia", "contraband", "report", "security", "confiscate"],
+    "category": "policy_violation",
+    "severity": "high"
+  },
+  {
+    "id": "q007",
+    "query": "A resident reports their roommate is being physically aggressive. What do I do?",
+    "expected_keywords": ["physical", "aggression", "safety", "security", "emergency", "mediation"],
+    "category": "physical_altercation",
+    "severity": "high"
+  },
+  {
+    "id": "q008",
+    "query": "What is the quiet hours policy for weeknights versus weekends?",
+    "expected_keywords": ["quiet hours", "weeknight", "weekend", "courtesy hours", "noise"],
+    "category": "policy",
+    "severity": "low"
+  },
+  {
+    "id": "q009",
+    "query": "A resident has not been seen or heard from in several days and their friends are worried. What steps should I take?",
+    "expected_keywords": ["wellness check", "missing", "welfare", "notify", "emergency contact"],
+    "category": "wellness_check",
+    "severity": "high"
+  },
+  {
+    "id": "q010",
+    "query": "How many guests is a resident allowed to have overnight and for how long?",
+    "expected_keywords": ["guest", "overnight", "policy", "limit", "days", "consecutive"],
+    "category": "policy",
+    "severity": "low"
+  },
+  {
+    "id": "q011",
+    "query": "There is water leaking from the ceiling in a resident's room. Who do I contact?",
+    "expected_keywords": ["water", "leak", "maintenance", "facilities", "emergency", "report"],
+    "category": "facilities_emergency",
+    "severity": "medium"
+  },
+  {
+    "id": "q012",
+    "query": "A resident reports being sexually harassed by another resident. What is the protocol?",
+    "expected_keywords": ["sexual harassment", "Title IX", "report", "confidential", "Dean", "advocate"],
+    "category": "harassment",
+    "severity": "high"
+  },
+  {
+    "id": "q013",
+    "query": "Can residents have candles or incense in their rooms?",
+    "expected_keywords": ["candle", "incense", "fire", "prohibited", "open flame", "policy"],
+    "category": "policy",
+    "severity": "low"
+  },
+  {
+    "id": "q014",
+    "query": "A fire alarm is going off in the building. What are my responsibilities as an RA?",
+    "expected_keywords": ["fire alarm", "evacuate", "assembly", "roll", "fire department", "re-entry"],
+    "category": "fire_emergency",
+    "severity": "high"
+  },
+  {
+    "id": "q015",
+    "query": "How do I handle a resident who appears to be intoxicated in the hallway?",
+    "expected_keywords": ["intoxicated", "alcohol", "alcohol policy", "medical", "transport", "report"],
+    "category": "alcohol",
+    "severity": "medium"
+  },
+  {
+    "id": "q016",
+    "query": "A resident wants to switch rooms. What is the room change process?",
+    "expected_keywords": ["room change", "transfer", "housing office", "form", "approval", "availability"],
+    "category": "housing_process",
+    "severity": "low"
+  },
+  {
+    "id": "q017",
+    "query": "What do I do if I smell smoke coming from a resident's room?",
+    "expected_keywords": ["smoke", "fire", "alarm", "evacuate", "prohibited", "smoking policy"],
+    "category": "fire_emergency",
+    "severity": "high"
+  },
+  {
+    "id": "q018",
+    "query": "A resident has a pet in their room but pets are not allowed. What is the procedure?",
+    "expected_keywords": ["pet", "prohibited", "animal", "policy", "removal", "fine"],
+    "category": "policy_violation",
+    "severity": "low"
+  },
+  {
+    "id": "q019",
+    "query": "How do I fill out an incident report after a confrontation between residents?",
+    "expected_keywords": ["incident report", "documentation", "timeline", "witnesses", "submit", "housing office"],
+    "category": "documentation",
+    "severity": "medium"
+  },
+  {
+    "id": "q020",
+    "query": "A resident discloses they are being stalked by someone on campus. What should I do?",
+    "expected_keywords": ["stalking", "safety plan", "campus security", "report", "confidential", "Title IX"],
+    "category": "harassment",
+    "severity": "high"
+  },
+  {
+    "id": "q021",
+    "query": "What is the escalation process for a resident who repeatedly violates quiet hours?",
+    "expected_keywords": ["repeat violation", "escalate", "probation", "housing contract", "meeting", "sanction"],
+    "category": "policy_violation",
+    "severity": "medium"
+  },
+  {
+    "id": "q022",
+    "query": "A resident's parent is calling me demanding information about their child. What can I share?",
+    "expected_keywords": ["FERPA", "privacy", "parent", "information", "cannot disclose", "student consent"],
+    "category": "privacy_policy",
+    "severity": "medium"
+  },
+  {
+    "id": "q023",
+    "query": "There is a power outage in the building. What is the emergency procedure?",
+    "expected_keywords": ["power outage", "emergency lighting", "facilities", "generator", "notify", "safety"],
+    "category": "facilities_emergency",
+    "severity": "medium"
+  },
+  {
+    "id": "q024",
+    "query": "How should I handle a resident who is grieving a death in the family?",
+    "expected_keywords": ["grief", "counseling", "support", "accommodation", "bereavement", "Dean of Students"],
+    "category": "student_wellness",
+    "severity": "medium"
+  },
+  {
+    "id": "q025",
+    "query": "A resident is using a prohibited appliance like a hot plate. What do I do?",
+    "expected_keywords": ["prohibited appliance", "hot plate", "confiscate", "fire hazard", "policy", "report"],
+    "category": "policy_violation",
+    "severity": "medium"
+  },
+  {
+    "id": "q026",
+    "query": "What should I do during an active threat or lockdown situation?",
+    "expected_keywords": ["active threat", "lockdown", "lock", "lights off", "barricade", "911", "stay"],
+    "category": "emergency",
+    "severity": "high"
+  },
+  {
+    "id": "q027",
+    "query": "A resident has a disability accommodation that requires a single room. How is that handled?",
+    "expected_keywords": ["disability", "accommodation", "accessibility", "single room", "housing office", "documentation"],
+    "category": "housing_process",
+    "severity": "medium"
+  },
+  {
+    "id": "q028",
+    "query": "Two roommates are in a conflict about cleanliness. What resources are available?",
+    "expected_keywords": ["roommate conflict", "mediation", "roommate agreement", "housing staff", "meeting"],
+    "category": "conflict_resolution",
+    "severity": "low"
+  },
+  {
+    "id": "q029",
+    "query": "What is the policy for residents who want to move out before the end of the lease?",
+    "expected_keywords": ["early termination", "contract break", "housing fee", "approval", "exception process"],
+    "category": "housing_process",
+    "severity": "medium"
+  },
+  {
+    "id": "q030",
+    "query": "A resident is having a medical emergency. What are the steps I should take?",
+    "expected_keywords": ["medical emergency", "911", "AED", "do not move", "stay", "emergency contact", "report"],
+    "category": "medical_emergency",
+    "severity": "high"
+  }
+]

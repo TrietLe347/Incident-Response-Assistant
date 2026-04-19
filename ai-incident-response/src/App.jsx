@@ -8,9 +8,6 @@ function nextId() {
   return ++msgIdCounter;
 }
 
-/**
- * Status badge — shows connection / loading state.
- */
 function StatusBadge({ isLoading }) {
   return (
     <div className="flex items-center gap-1.5">
@@ -31,9 +28,6 @@ function StatusBadge({ isLoading }) {
   );
 }
 
-/**
- * Clear chat confirmation — inline button.
- */
 function ClearButton({ onClear, disabled }) {
   return (
     <button
@@ -56,11 +50,8 @@ export default function App() {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Listen for suggestion chip events from ChatWindow
   useEffect(() => {
-    function handler(e) {
-      setInputValue(e.detail);
-    }
+    function handler(e) { setInputValue(e.detail); }
     window.addEventListener('aria:suggestion', handler);
     return () => window.removeEventListener('aria:suggestion', handler);
   }, []);
@@ -69,7 +60,6 @@ export default function App() {
     const query = inputValue.trim();
     if (!query || isLoading) return;
 
-    // Add user message
     const userMsg = {
       id: nextId(),
       role: 'user',
@@ -77,9 +67,9 @@ export default function App() {
       timestamp: new Date(),
     };
 
-    // Add loading placeholder for assistant
+    const assistantId = nextId();
     const loadingMsg = {
-      id: nextId(),
+      id: assistantId,
       role: 'assistant',
       content: '',
       isLoading: true,
@@ -90,28 +80,42 @@ export default function App() {
     setInputValue('');
     setIsLoading(true);
 
-    try {
-      const { answer, sources, latencyMs } = await queryAnswerService(query);
+    const startTime = performance.now();
 
-      // Replace loading placeholder with real response
+    try {
+      const { answer, sources, latencyMs } = await queryAnswerService(query, {
+        // Called when sources arrive early — show them before answer is complete
+        onSources: (sources) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, sources } : m
+            )
+          );
+        },
+        // Called for each streamed chunk — append text progressively
+        onChunk: (text) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? { ...m, content: m.content + text, isLoading: false }
+                : m
+            )
+          );
+        },
+      });
+
+      // Final update: ensure complete answer + latency
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === loadingMsg.id
-            ? {
-                ...m,
-                content: answer,
-                sources,
-                latencyMs,
-                isLoading: false,
-              }
+          m.id === assistantId
+            ? { ...m, content: answer, sources, latencyMs, isLoading: false }
             : m
         )
       );
     } catch (err) {
-      // Replace loading placeholder with error message
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === loadingMsg.id
+          m.id === assistantId
             ? {
                 ...m,
                 content:
@@ -139,10 +143,8 @@ export default function App() {
       className="min-h-screen w-full flex flex-col grid-bg noise-overlay"
       style={{ background: 'var(--surface-950)' }}
     >
-      {/* Radial top glow */}
       <div className="fixed top-0 left-0 right-0 h-64 pointer-events-none radial-glow z-0" />
 
-      {/* ── Header ─────────────────────────────────────────────── */}
       <header
         className="relative z-10 flex-shrink-0 flex items-center justify-between px-4 sm:px-6 py-3.5 border-b"
         style={{
@@ -151,9 +153,7 @@ export default function App() {
           backdropFilter: 'blur(12px)',
         }}
       >
-        {/* Logo / Brand */}
         <div className="flex items-center gap-3">
-          {/* Icon */}
           <div
             className="w-8 h-8 rounded-lg border border-amber-500/40 flex items-center justify-center"
             style={{ background: 'rgba(245,158,11,0.08)', boxShadow: '0 0 12px rgba(245,158,11,0.15)' }}
@@ -167,12 +167,9 @@ export default function App() {
               <line x1="17" y1="12" x2="21" y2="12" />
             </svg>
           </div>
-
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-mono text-sm font-medium text-slate-200 tracking-wide">
-                ARIA
-              </h1>
+              <h1 className="font-mono text-sm font-medium text-slate-200 tracking-wide">ARIA</h1>
               <span
                 className="px-1.5 py-0.5 rounded font-mono uppercase tracking-widest text-amber-500/80 border border-amber-500/20"
                 style={{ fontSize: '8px', background: 'rgba(245,158,11,0.05)' }}
@@ -186,7 +183,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right controls */}
         <div className="flex items-center gap-3">
           <StatusBadge isLoading={isLoading} />
           {messages.length > 0 && (
@@ -195,13 +191,9 @@ export default function App() {
         </div>
       </header>
 
-      {/* ── Main chat area ──────────────────────────────────────── */}
       <main className="relative z-10 flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full overflow-hidden">
-          {/* Message list */}
           <ChatWindow messages={messages} />
-
-          {/* Input bar */}
           <div className="flex-shrink-0 px-4 pb-5 pt-2">
             <ChatInput
               value={inputValue}
@@ -210,8 +202,6 @@ export default function App() {
               isLoading={isLoading}
               disabled={isLoading}
             />
-
-            {/* Footer hint */}
             <p className="text-center text-slate-700 mt-2.5 font-mono" style={{ fontSize: '9px' }}>
               Powered by Gemini · Vertex AI · Google Cloud Run
             </p>

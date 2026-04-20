@@ -1,5 +1,5 @@
 name: ARIA CI/CD Pipeline
-
+ 
 on:
   push:
     branches:
@@ -7,7 +7,7 @@ on:
   pull_request:
     branches:
       - main
-
+ 
 jobs:
   test:
     name: Run unit tests
@@ -15,21 +15,22 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+ 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
+ 
       - name: Install dependencies
         run: |
           pip install pytest pytest-mock flask numpy \
             functions-framework google-cloud-storage \
+            google-cloud-aiplatform vertexai \
             pdfplumber requests
-
+ 
       - name: Run tests
         run: pytest tests.py -v --tb=short
-
+ 
   deploy-backend:
     name: Deploy backend to GCP
     runs-on: ubuntu-latest
@@ -38,17 +39,17 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+ 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
-
+ 
       - name: Set up gcloud CLI
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: cs-cloud-elamin
-
+ 
       - name: Deploy ingest_document
         run: |
           gcloud functions deploy ingest_document \
@@ -59,7 +60,7 @@ jobs:
             --source ./ingestion \
             --set-env-vars GOOGLE_CLOUD_PROJECT=cs-cloud-elamin \
             --memory 512MB --quiet
-
+ 
       - name: Deploy embed_chunk
         run: |
           gcloud functions deploy embed_chunk \
@@ -70,7 +71,7 @@ jobs:
             --source ./embeddings \
             --set-env-vars GOOGLE_CLOUD_PROJECT=cs-cloud-elamin \
             --memory 1GB --quiet
-
+ 
       - name: Deploy retrieval-service
         run: |
           gcloud run deploy retrieval-service \
@@ -80,7 +81,7 @@ jobs:
             --memory 1Gi \
             --set-env-vars GOOGLE_CLOUD_PROJECT=cs-cloud-elamin \
             --quiet
-
+ 
       - name: Deploy answer
         run: |
           gcloud functions deploy answer \
@@ -91,7 +92,7 @@ jobs:
             --memory 512MB --timeout 120s \
             --set-env-vars GOOGLE_CLOUD_PROJECT=cs-cloud-elamin \
             --quiet
-
+ 
   deploy-frontend:
     name: Deploy frontend to Firebase
     runs-on: ubuntu-latest
@@ -100,20 +101,20 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+ 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
+ 
       - name: Install dependencies
         working-directory: ./ai-incident-response
         run: npm ci
-
+ 
       - name: Build frontend
         working-directory: ./ai-incident-response
         run: npm run build
-
+ 
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
@@ -121,3 +122,4 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CS_CLOUD_ELAMIN }}
           projectId: cs-cloud-elamin
           entryPoint: ./ai-incident-response
+ 

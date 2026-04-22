@@ -12,12 +12,6 @@ RETRIEVAL_URL = "https://retrieval-service-430373032909.us-central1.run.app"
 
 _model = None
 
-CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Accept",
-}
-
 
 def get_model():
     global _model
@@ -53,39 +47,59 @@ Answer:"""
 
 
 def sse_event(data: dict) -> str:
-    """Format a dict as a Server-Sent Event."""
     return f"data: {json.dumps(data)}\n\n"
 
 
 @functions_framework.http
 def answer(request):
-    # Preflight
+    # Handle CORS preflight
     if request.method == "OPTIONS":
-        return ("", 204, CORS_HEADERS)
+        response = Response("", status=204)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Accept"
+        response.headers["Access-Control-Max-Age"] = "3600"
+        return response
 
     req_json = request.get_json(silent=True)
     if not req_json or "query" not in req_json:
-        return (json.dumps({"error": "Missing query"}), 400, {**CORS_HEADERS, "Content-Type": "application/json"})
+        response = Response(
+            json.dumps({"error": "Missing query"}),
+            status=400,
+            content_type="application/json"
+        )
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
 
     question = req_json["query"].strip()
     use_stream = req_json.get("stream", True)
 
     print(f"Query: {question} | stream={use_stream}")
 
-    # Retrieve relevant chunks
     try:
         r = requests.post(RETRIEVAL_URL, json={"query": question}, timeout=30)
         r.raise_for_status()
     except requests.RequestException as e:
         print(f"Retrieval failed: {e}")
-        return (json.dumps({"error": "Retrieval service failed"}), 502, {**CORS_HEADERS, "Content-Type": "application/json"})
+        response = Response(
+            json.dumps({"error": "Retrieval service failed"}),
+            status=502,
+            content_type="application/json"
+        )
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
 
     chunks = [c for c in r.json() if c["score"] > 0.55][:8]
     print(f"Chunks after filter: {len(chunks)}")
 
     if not chunks:
-        payload = {"answer": "No relevant policy information found for your query.", "sources": []}
-        return (json.dumps(payload), 200, {**CORS_HEADERS, "Content-Type": "application/json"})
+        response = Response(
+            json.dumps({"answer": "No relevant policy information found for your query.", "sources": []}),
+            status=200,
+            content_type="application/json"
+        )
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
 
     sources = [c["source"] for c in chunks]
     prompt = build_prompt(question, chunks)
@@ -94,31 +108,31 @@ def answer(request):
     if use_stream:
         def generate():
             try:
-                # Send sources first so UI can show them immediately
                 yield sse_event({"type": "sources", "sources": sources})
-
                 full_text = ""
                 for chunk in gemini.generate_content(prompt, stream=True):
                     if chunk.text:
                         full_text += chunk.text
                         yield sse_event({"type": "chunk", "text": chunk.text})
-
                 yield sse_event({"type": "done", "answer": full_text, "sources": sources})
             except Exception as e:
                 print(f"Streaming error: {e}")
                 yield sse_event({"type": "error", "message": str(e)})
 
-        stream_headers = {
-            **CORS_HEADERS,
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        }
-        return Response(stream_with_context(generate()), headers=stream_headers)
+        response = Response(stream_with_context(generate()), status=200)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Content-Type"] = "text/event-stream"
+        response.headers["Cache-Control"] = "no-cache"
+        response.headers["X-Accel-Buffering"] = "no"
+        return response
 
     else:
-        # Non-streaming fallback
-        response = gemini.generate_content(prompt)
-        answer_text = response.text if response.text else "No answer generated."
-        payload = {"answer": answer_text, "sources": sources}
-        return (json.dumps(payload), 200, {**CORS_HEADERS, "Content-Type": "application/json"})
+        response_obj = gemini.generate_content(prompt)
+        answer_text = response_obj.text if response_obj.text else "No answer generated."
+        response = Response(
+            json.dumps({"answer": answer_text, "sources": sources}),
+            status=200,
+            content_type="application/json"
+        )
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response

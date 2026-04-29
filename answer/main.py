@@ -5,6 +5,10 @@ import vertexai
 from vertexai.generative_models import GenerativeModel
 import json
 import os
+from google.cloud import firestore
+import time
+
+
 
 PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
 LOCATION = "us-central1"
@@ -12,6 +16,9 @@ RETRIEVAL_URL = "https://retrieval-service-430373032909.us-central1.run.app"
 
 _model = None
 
+
+def get_db():
+    return firestore.Client()
 
 def get_model():
     global _model
@@ -50,6 +57,20 @@ def sse_event(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
 
 
+def log_query_to_firestore(question, answer_text, latency, chunks):
+    try:
+        db = get_db()
+        db.collection("queries").add({
+            "query_text": question,
+            "answer_text": answer_text,
+            "timestamp": firestore.SERVER_TIMESTAMP,
+            "response_time_ms": latency,
+            "num_chunks_used": len(chunks)
+        })
+    except Exception as e:
+        print("Firestore logging error:", e)
+
+
 @functions_framework.http
 def answer(request):
     # Handle CORS preflight
@@ -72,6 +93,8 @@ def answer(request):
         return response
 
     question = req_json["query"].strip()
+    start_time = time.time()
+
     use_stream = req_json.get("stream", True)
 
     print(f"Query: {question} | stream={use_stream}")
@@ -114,7 +137,12 @@ def answer(request):
                     if chunk.text:
                         full_text += chunk.text
                         yield sse_event({"type": "chunk", "text": chunk.text})
+
+                latency = int((time.time() - start_time) * 1000)
+                log_query_to_firestore(question,full_text,latency,chunks)
+            
                 yield sse_event({"type": "done", "answer": full_text, "sources": sources})
+            
             except Exception as e:
                 print(f"Streaming error: {e}")
                 yield sse_event({"type": "error", "message": str(e)})
@@ -129,6 +157,11 @@ def answer(request):
     else:
         response_obj = gemini.generate_content(prompt)
         answer_text = response_obj.text if response_obj.text else "No answer generated."
+
+        latency = int((time.time() - start_time) * 1000)
+        log_query_to_firestore(question,answer_text,latency,chunks)
+        
+
         response = Response(
             json.dumps({"answer": answer_text, "sources": sources}),
             status=200,

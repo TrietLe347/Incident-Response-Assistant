@@ -17,6 +17,7 @@ from unittest.mock import MagicMock, patch
 
 class TestIngestDocument:
 
+    
     def test_skips_non_raw_files(self):
         with patch("functions_framework.cloud_event", lambda f: f), \
              patch("ingestion.main.storage.Client"):
@@ -26,6 +27,7 @@ class TestIngestDocument:
             with patch("ingestion.main.storage.Client") as mock_client:
                 ingest_document(event)
                 mock_client.return_value.bucket.return_value.blob.assert_not_called()
+    
 
     def test_skips_non_pdf_files(self):
         from ingestion.main import ingest_document
@@ -134,7 +136,7 @@ class TestAnswerService:
                                        content_type="application/json"):
             from flask import request as flask_request
             response = answer(flask_request)
-            assert response[1] == 400
+            assert response.status_code == 400
 
     def test_returns_no_result_when_chunks_empty(self):
         from answer.main import answer
@@ -148,7 +150,7 @@ class TestAnswerService:
                 mock_post.return_value.status_code = 200
                 mock_post.return_value.json.return_value = []
                 response = answer(flask_request)
-                body = json.loads(response[0])
+                body = json.loads(response.get_data(as_text=True))
                 assert "No relevant" in body.get("answer", "")
 
     def test_cors_header_present(self):
@@ -167,8 +169,121 @@ class TestAnswerService:
                 ]
                 mock_model.return_value.generate_content.return_value = MagicMock(text="Evacuate now.")
                 response = answer(flask_request)
-                headers = response[2]
+                headers = response.headers
                 assert "Access-Control-Allow-Origin" in headers
+    
+    def test_options_request(self):
+        from answer.main import answer
+        from flask import Flask
+
+        app = Flask(__name__)
+        with app.test_request_context("/", method="OPTIONS"):
+            from flask import request
+            response = answer(request)
+
+            assert response.status_code == 204
+            assert "Access-Control-Allow-Origin" in response.headers
+
+    @patch("answer.main.requests.post")
+    def test_retrieval_exception(self, mock_post):
+        from answer.main import answer
+        from flask import Flask
+        import json
+        import requests
+
+        mock_post.side_effect = requests.RequestException("fail")
+
+        app = Flask(__name__)
+        with app.test_request_context("/", method="POST",
+                                    data=json.dumps({"query": "test"}),
+                                    content_type="application/json"):
+            from flask import request
+            response = answer(request)
+
+            assert response.status_code == 502
+
+    @patch("answer.main.get_model")
+    @patch("answer.main.requests.post")
+    def test_streaming_success(self, mock_post, mock_model):
+        from answer.main import answer
+        from flask import Flask
+        import json
+
+        # Mock retrieval
+        mock_post.return_value.json.return_value = [
+            {"score": 0.9, "text": "Evacuate", "source": "doc"}
+        ]
+        mock_post.return_value.raise_for_status = lambda: None
+
+        # Mock streaming model
+        mock_model.return_value.generate_content.return_value = [
+            MagicMock(text="Step 1"),
+            MagicMock(text="Step 2"),
+        ]
+
+        app = Flask(__name__)
+        with app.test_request_context("/", method="POST",
+                                    data=json.dumps({"query": "fire", "stream": True}),
+                                    content_type="application/json"):
+            from flask import request
+            response = answer(request)
+
+            output = list(response.response)
+
+            assert any("done" in str(x) for x in output)
+
+
+    @patch("answer.main.get_model")
+    @patch("answer.main.requests.post")
+    def test_streaming_error(self, mock_post, mock_model):
+        from answer.main import answer
+        from flask import Flask
+        import json
+
+        mock_post.return_value.json.return_value = [
+            {"score": 0.9, "text": "data", "source": "doc"}
+        ]
+        mock_post.return_value.raise_for_status = lambda: None
+
+        # Force error inside generator
+        mock_model.return_value.generate_content.side_effect = Exception("stream fail")
+
+        app = Flask(__name__)
+        with app.test_request_context("/", method="POST",
+                                    data=json.dumps({"query": "test", "stream": True}),
+                                    content_type="application/json"):
+            from flask import request
+            response = answer(request)
+
+            output = list(response.response)
+
+            assert any("error" in str(x) for x in output)
+
+    @patch("answer.main.get_model")
+    @patch("answer.main.requests.post")
+    def test_non_stream_no_text(self, mock_post, mock_model):
+        from answer.main import answer
+        from flask import Flask
+        import json
+
+        mock_post.return_value.json.return_value = [
+            {"score": 0.9, "text": "data", "source": "doc"}
+        ]
+        mock_post.return_value.raise_for_status = lambda: None
+
+        # No text returned
+        mock_model.return_value.generate_content.return_value = MagicMock(text=None)
+
+        app = Flask(__name__)
+        with app.test_request_context("/", method="POST",
+                                    data=json.dumps({"query": "test", "stream": False}),
+                                    content_type="application/json"):
+            from flask import request
+            response = answer(request)
+
+            body = json.loads(response.get_data(as_text=True))
+
+            assert body["answer"] == "No answer generated."
 
 
 # ── Retrieval service tests ───────────────────────────────────────────────────
@@ -236,6 +351,172 @@ class TestRetrievalService:
             assert data["status"] == "reloaded"
             assert data["embeddings_loaded"] == 4
 
+
+# ── Firestore logging tests ───────────────────────────────────────────────────
+
+class TestFirestore:
+
+    @patch("answer.main.get_db")
+    def test_log_query_to_firestore_called(self, mock_get_db):
+        from answer.main import log_query_to_firestore
+
+        mock_db = MagicMock()
+        mock_get_db.return_value = mock_db
+
+        log_query_to_firestore(
+            question="fire alarm",
+            answer_text="Evacuate immediately.",
+            latency=1200,
+            chunks=[{"text": "chunk1"}, {"text": "chunk2"}]
+        )
+
+        assert mock_db.collection("queries").add.called
+
+
+    @patch("answer.main.get_db")
+    def test_log_query_to_firestore_data_correct(self, mock_get_db):
+        from answer.main import log_query_to_firestore
+
+        mock_db = MagicMock()
+        mock_get_db.return_value = mock_db
+
+        log_query_to_firestore(
+            question="gas leak",
+            answer_text="Leave building",
+            latency=800,
+            chunks=[{"text": "chunk1"}]
+        )
+
+        args, _ = mock_db.collection("queries").add.call_args
+        data = args[0]
+
+        assert data["query_text"] == "gas leak"
+        assert data["answer_text"] == "Leave building"
+        assert data["response_time_ms"] == 800
+        assert data["num_chunks_used"] == 1
+
+
+    @patch("answer.main.get_db")
+    def test_log_query_handles_exception(self, mock_get_db):
+        from answer.main import log_query_to_firestore
+
+        mock_db = MagicMock()
+        mock_get_db.return_value = mock_db
+
+        mock_db.collection("queries").add.side_effect = Exception("Firestore down")
+
+        # Should NOT raise error
+        log_query_to_firestore(
+            question="test",
+            answer_text="test answer",
+            latency=100,
+            chunks=[]
+        )
+
+
+    # Optional integration test
+
+    @patch("answer.main.log_query_to_firestore")
+    @patch("answer.main.requests.post")
+    @patch("answer.main.get_model")
+    def test_answer_calls_firestore_logging(self, mock_get_model, mock_post, mock_log):
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = [
+            {"score": 0.9, "text": "Evacuate immediately.", "source": "chunk_0.txt"}
+        ]
+
+        mock_model = MagicMock()
+        mock_model.generate_content.return_value = MagicMock(text="Evacuate now.")
+        mock_get_model.return_value = mock_model
+
+        from answer.main import answer
+        from flask import Flask
+
+        app = Flask(__name__)
+        with app.test_request_context("/", method="POST",
+                                      data=json.dumps({"query": "fire alarm", "stream": False}),
+                                      content_type="application/json"):
+            from flask import request as flask_request
+            answer(flask_request)
+
+        assert mock_log.called
+
+
+# ── Document logging tests ───────────────────────────────────────────────────
+
+class TestDocumentLogging:
+
+    @patch("ingestion.main.get_db")
+    def test_log_document_called(self, mock_get_db):
+        from ingestion.main import log_document
+
+        mock_db = MagicMock()
+        mock_get_db.return_value = mock_db
+
+        log_document("file.pdf", 10)
+
+        assert mock_db.collection("documents").add.called
+
+
+    @patch("ingestion.main.get_db")
+    def test_log_document_data_correct(self, mock_get_db):
+        from ingestion.main import log_document
+
+        mock_db = MagicMock()
+        mock_get_db.return_value = mock_db
+
+        log_document("policy.pdf", 5)
+
+        args, _ = mock_db.collection("documents").add.call_args
+        data = args[0]
+
+        assert data["file_name"] == "policy.pdf"
+        assert data["num_chunks"] == 5
+        assert "upload_timestamp" in data
+
+
+    @patch("ingestion.main.get_db")
+    def test_log_document_handles_exception(self, mock_get_db):
+        from ingestion.main import log_document
+
+        mock_db = MagicMock()
+        mock_get_db.return_value = mock_db
+
+        mock_db.collection("documents").add.side_effect = Exception("Firestore error")
+
+        # Should not crash
+        log_document("file.pdf", 3)
+
+
+    # 🔥 Integration-style test
+
+    @patch("ingestion.main.log_document")
+    @patch("ingestion.main.storage.Client")
+    @patch("ingestion.main.pdfplumber.open")
+    def test_ingest_calls_log_document(self, mock_pdf, mock_storage, mock_log):
+        from ingestion.main import ingest_document
+
+        # Mock PDF extraction
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = "A" * 1000
+        mock_pdf.return_value.__enter__.return_value.pages = [mock_page]
+
+        # Mock GCS
+        mock_blob = MagicMock()
+        mock_blob.download_as_bytes.return_value = b"fake pdf"
+        mock_storage.return_value.bucket.return_value.blob.return_value = mock_blob
+
+        # Fake event
+        event = MagicMock()
+        event.data = {
+            "bucket": "test-bucket",
+            "name": "raw/test.pdf"
+        }
+
+        ingest_document(event)
+
+        # Verify log_document was called
+        assert mock_log.called
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

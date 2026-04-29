@@ -4,3 +4,6 @@ google-cloud-aiplatform
 vertexai
 functions-framework==3.*
 google-cloud-storage==2.*
+google-cloud-firestore
+flask
+

@@ -1,5 +1,5 @@
 name: ARIA CI/CD Pipeline
- 
+
 on:
   push:
     branches:
@@ -7,71 +7,81 @@ on:
   pull_request:
     branches:
       - main
- 
+
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Run unit tests
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
- 
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
- 
-      - name: Install dependencies
+
+      - name: Install Python dependencies
         run: |
-          pip install pytest pytest-mock flask numpy \
-            functions-framework google-cloud-storage \
-            google-cloud-aiplatform vertexai \
-            pdfplumber requests
- 
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
       - name: Run tests
         run: pytest tests.py -v --tb=short
- 
+
   deploy-backend:
     name: Deploy backend to GCP
     runs-on: ubuntu-latest
     needs: test
+
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
- 
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
- 
+
       - name: Set up gcloud CLI
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: cs-cloud-elamin
- 
+
       - name: Deploy ingest_document
         run: |
           gcloud functions deploy ingest_document \
-            --gen2 --runtime python311 \
+            --gen2 \
+            --runtime python311 \
+            --region us-central1 \
+            --entry-point ingest_document \
+            --source ./ingestion \
             --trigger-event-filters="type=google.cloud.storage.object.v1.finalized" \
             --trigger-event-filters="bucket=aria-incident-docs-elamin" \
-            --region us-central1 --entry-point ingest_document \
-            --source ./ingestion \
             --set-env-vars GOOGLE_CLOUD_PROJECT=cs-cloud-elamin \
-            --memory 512MB --quiet
- 
+            --memory 512MB \
+            --quiet
+
       - name: Deploy embed_chunk
         run: |
           gcloud functions deploy embed_chunk \
-            --gen2 --runtime python311 \
+            --gen2 \
+            --runtime python311 \
+            --region us-central1 \
+            --entry-point embed_chunk \
+            --source ./embeddings \
             --trigger-event-filters="type=google.cloud.storage.object.v1.finalized" \
             --trigger-event-filters="bucket=aria-incident-docs-elamin" \
-            --region us-central1 --entry-point embed_chunk \
-            --source ./embeddings \
             --set-env-vars GOOGLE_CLOUD_PROJECT=cs-cloud-elamin \
-            --memory 1GB --quiet
- 
+            --memory 1GB \
+            --quiet
+
       - name: Deploy retrieval-service
         run: |
           gcloud run deploy retrieval-service \
@@ -81,40 +91,46 @@ jobs:
             --memory 1Gi \
             --set-env-vars GOOGLE_CLOUD_PROJECT=cs-cloud-elamin \
             --quiet
- 
+
       - name: Deploy answer
         run: |
           gcloud functions deploy answer \
-            --gen2 --runtime python311 \
-            --trigger-http --allow-unauthenticated \
-            --region us-central1 --entry-point answer \
+            --gen2 \
+            --runtime python311 \
+            --region us-central1 \
+            --entry-point answer \
             --source ./answer \
-            --memory 512MB --timeout 120s \
+            --trigger-http \
+            --allow-unauthenticated \
+            --memory 512MB \
+            --timeout 120s \
             --set-env-vars GOOGLE_CLOUD_PROJECT=cs-cloud-elamin \
             --quiet
- 
+
   deploy-frontend:
     name: Deploy frontend to Firebase
     runs-on: ubuntu-latest
     needs: test
+
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
- 
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
- 
-      - name: Install dependencies
+
+      - name: Install frontend dependencies
         working-directory: ./ai-incident-response
         run: npm ci
- 
+
       - name: Build frontend
         working-directory: ./ai-incident-response
         run: npm run build
- 
+
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
@@ -122,4 +138,4 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CS_CLOUD_ELAMIN }}
           projectId: cs-cloud-elamin
           entryPoint: ./ai-incident-response
- 
+          channelId: live

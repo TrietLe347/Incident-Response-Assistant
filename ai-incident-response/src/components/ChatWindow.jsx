@@ -57,10 +57,10 @@ export default function ChatWindow({ messages }) {
         {/* Suggestion chips */}
         <div className="mt-8 flex flex-wrap justify-center gap-2 max-w-md">
           {[
-            'What is the containment procedure for a ransomware attack?',
-            'Who should be notified in a Severity 1 incident?',
-            'How do we handle a data breach affecting PII?',
-            'What are our recovery time objectives?',
+            'What should I do if a resident reports a gas leak?',
+            'What are the quiet hours on weekends?',
+            'How do I file an incident report?',
+            'What do I do if a fire alarm goes off?',
           ].map((q) => (
             <SuggestionChip key={q} text={q} />
           ))}

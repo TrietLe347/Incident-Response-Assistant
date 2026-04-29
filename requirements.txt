@@ -1,0 +1,13 @@
+pytest
+pytest-mock
+
+flask
+functions-framework
+numpy
+pdfplumber
+requests
+
+google-cloud-storage
+google-cloud-firestore
+google-cloud-aiplatform
+vertexai

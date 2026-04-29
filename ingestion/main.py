@@ -2,10 +2,34 @@ import functions_framework
 from google.cloud import storage
 import pdfplumber
 import io
+from google.cloud import firestore
 
 # The size of each text chunk in characters
 # 500 characters balances context quality vs search precision
 CHUNK_SIZE = 500
+
+
+def get_db():
+    return firestore.Client()
+
+
+def log_document(file_name, num_chunks):
+    db = get_db()
+
+    try:
+        
+        doc_ref = db.collection("documents").add({
+            "file_name":file_name,
+            "upload_timestamp":firestore.SERVER_TIMESTAMP,
+            "num_chunks":num_chunks
+        })
+
+        document_id = doc_ref[1].id
+
+        print(f"Document logged with ID: {document_id}")
+
+    except Exception as e:
+        print("Firestore document logging error:",e)
 
 @functions_framework.cloud_event
 def ingest_document(cloud_event):
@@ -55,9 +79,13 @@ def ingest_document(cloud_event):
 
     print(f"Total chunks created: {len(chunks)}")
 
+
+    
+
     # Extract the base filename without the path and .pdf extension
     # e.g. "raw/housing_emergency_procedures.pdf" -> "housing_emergency_procedures"
     base_name = file_name.split("/")[-1].split(".pdf")[0]
+    clean_name = file_name.split("/")[-1]
 
     # Save each chunk as a separate .txt file in the processed/ folder
     # Eventarc will detect each new file and trigger embed_chunk automatically
@@ -65,4 +93,6 @@ def ingest_document(cloud_event):
         chunk_blob = bucket.blob(f"processed/{base_name}_chunk_{idx}.txt")
         chunk_blob.upload_from_string(chunk)
 
-    print("UPLOADED FROM GITHUB YEHOO")
+    log_document(clean_name,len(chunks))
+
+    

@@ -107,6 +107,20 @@ jobs:
             --set-env-vars GOOGLE_CLOUD_PROJECT=cs-cloud-elamin \
             --quiet
 
+      - name: Deploy upload_document
+        run: |
+          gcloud functions deploy upload_document \
+            --gen2 \
+            --runtime python311 \
+            --region us-central1 \
+            --entry-point upload_document \
+            --source ./upload \
+            --trigger-http \
+            --allow-unauthenticated \
+            --set-env-vars GOOGLE_CLOUD_PROJECT=cs-cloud-elamin \
+            --memory 512MB \
+            --quiet
+
   deploy-frontend:
     name: Deploy frontend to Firebase
     runs-on: ubuntu-latest
